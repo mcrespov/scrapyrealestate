@@ -1,0 +1,35 @@
+# config.json, ids.json, useragent.txt y salidas
+scrapyrealestate/data/
+**/data/
+*.json.tmp
+nohup.out
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Caché de herramientas
+.scrapy/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editores y SO
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secretos entorno local
+.env

@@ -1,14 +1,46 @@
-###### Requirements without __version__ Specifiers ######
-beautifulsoup4
-PyYAML
-art
-scrapy
-scrapy_useragents
-scrapy-rotating-proxies
-requests
-pyTelegramBotAPI
-requests_html
-pymongo
-wheel
-flask
-unidecode
+# Versiones fijadas para builds reproducibles.
+#
+# IMPORTANTE: hay que fijar también Twisted y la pila TLS. Si se dejan libres,
+# pip instala lo más nuevo y Scrapy 2.11.2 deja de funcionar (Twisted >=24.7
+# eliminó '_setAcceptableProtocols', que Scrapy 2.11.2 todavía importa).
+# Este conjunto está probado: resuelve sin conflictos (pip check) y Scrapy
+# carga los handlers HTTP/Playwright correctamente.
+
+# --- Núcleo Scrapy + Twisted + TLS (versiones acopladas, no subir sueltas) ---
+scrapy==2.11.2
+Twisted==24.3.0
+cryptography==42.0.8
+pyOpenSSL==24.1.0
+service-identity==24.1.0
+parsel==1.9.1
+w3lib==2.2.1
+queuelib==1.7.0
+itemadapter==0.9.0
+lxml==5.2.1
+
+# --- Navegador headless ---
+scrapy-playwright==0.0.40
+playwright==1.43.0
+
+# --- Proxies rotatorios (solo los usa la spider idealista_proxy) ---
+scrapy-rotating-proxies==0.6.2
+
+# --- Parseo / red / Telegram / web de configuración ---
+beautifulsoup4==4.12.3
+requests==2.32.3
+pyTelegramBotAPI==4.18.0
+flask==3.0.3
+werkzeug==3.0.3
+fake-useragent==1.5.1
+
+# --- Utilidades ---
+art==6.2
+wheel==0.43.0
+
+# Dependencias eliminadas respecto a la versión original del proyecto y la de mariosmf:
+# - pymongo: ya no se usa MongoDB.
+# - unidecode: solo lo usaba la lógica de MongoDB.
+# - PyYAML: no se importaba en ningún módulo.
+# - requests_html: importado pero sin usar en proxies.py.
+# - scrapy_useragents: middleware desactivado en settings.py (sin mantener).
+# - lxml-html-clean: solo necesario con requests_html, ya eliminado.

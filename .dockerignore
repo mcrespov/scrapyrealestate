@@ -1,0 +1,28 @@
+# Control de versiones y metadatos
+.git
+.gitignore
+.dockerignore
+
+# Documentación
+README.md
+
+# config, ids, useragent y salidas
+scrapyrealestate/data/
+**/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Editores y SO
+.vscode/
+.DS_Store

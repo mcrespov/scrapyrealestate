@@ -1,133 +1,92 @@
-import scrapy, os
-from scrapy.spiders import CrawlSpider, Rule
-from scrapy.linkextractors import LinkExtractor
-from datetime import datetime
+import logging
+import scrapy
 from bs4 import BeautifulSoup
-#from items import ScrapyrealestateItem # ERROR (es confundeix amb items al 192.168.1.100)
 from scrapyrealestate.items import ScrapyrealestateItem
+from scrapy_playwright.page import PageMethod
 
-class FotocasaSpider(CrawlSpider):
+
+class YaencontreSpider(scrapy.Spider):
     name = "yaencontre"
-    allowed_domains = ["yaencontre"]
-    start_urls = ['https://www.yaencontre.com/alquiler/pisos/barcelona/o-recientes']
+    allowed_domains = ["yaencontre.com"]
 
-    '''def start_requests(self):
-        #start_urls = [url + '?ordenado-por=fecha-publicacion-desc' for url in self.start_urls]
-        yield scrapy.Request(f'{self.start_urls}')'''
+    def start_requests(self):
+        # yaencontre devuelve 403 a peticiones planas; lo cargamos con Playwright.
+        yield scrapy.Request(
+            f'{self.start_urls}',
+            meta={
+                'playwright': True,
+                'playwright_page_methods': [
+                    PageMethod("wait_for_selector", "article.real-estate-card", timeout=30000),
+                ],
+            },
+            errback=self.on_error,
+        )
 
-    custom_settings = {
-        # 'ROTATING_PROXY_PAGE_RETRY_TIMES': 99999999999,  # TODO: is it possible to setup this parameter with no limit?
-        # 'ROTATING_PROXY_LIST': get_proxies(),
-        # 'DOWNLOAD_FAIL_ON_DATALOSS': False,
-        # 'DOWNLOAD_DELAY': 1.25,
-        # "FEEDS": {"data/idealista.json": {"format": "json"}},
-        'DEFAULT_REQUEST_HEADERS': {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'accept-encoding': 'gzip, deflate, br',
-            'accept-language': 'es-ES,es;q=0.9,ca;q=0.8,en;q=0.7',
-            'cache-control': 'max-age=0',
-            'sec-fetch-dest': 'document',
-            'sec-fetch-mode': 'navigate',
-            'sec-fetch-site': 'none',
-            'sec-fetch-user': '?1',
-            'sec-gpc': '1',
-            'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
-        }
-    }
-
-    rules = (
-        # Filter all the flats paginated by the website following the pattern indicated
-        Rule(LinkExtractor(restrict_xpaths=("//a[@class='sui-LinkBasic sui-AtomButton sui-AtomButton--primary sui-AtomButton--outline sui-AtomButton--center sui-AtomButton--small sui-AtomButton--link sui-AtomButton--empty']")),
-             callback='parse',  # cridem la funcio parse de nou
-             follow=True),  # Seguim l'enllaç
-    )
+    def on_error(self, failure):
+        logging.error(f'Error al obtener datos de yaencontre.com: {failure.value}')
 
     def parse(self, response):
-        # Import items
-        items = ScrapyrealestateItem()
-
-        # Necessary in order to create the whole link towards the website
-        default_url = 'https://yaencontre.es'
-        # Passem la resposta a text amb BeautifulSoup
+        default_url = 'https://www.yaencontre.com'
         soup = BeautifulSoup(response.text, 'lxml')
-        print(soup.decode("utf8"))
+        # Cada vivienda es un article.real-estate-card.
+        flats = soup.find_all("article", {"class": "real-estate-card"})
 
-        flats = soup.find_all("div", {"class": "content"})
-        print(flats)
+        # alquiler/venta segun la url
+        if 'alquiler' in self.start_urls:
+            tipo = 'rent'
+        elif 'comprar' in self.start_urls or 'venta' in self.start_urls:
+            tipo = 'buy'
+        else:
+            tipo = ''
 
-        # div --> class="pagination" --> ul --> li --> class="next"
-        try:
-            next_page = soup.find("div", {"class": "pagination"}).find("a", {"class": "icon-arrow-right-after"})['href']
-        except:
-            next_page = ""
-        # Iterem per cada numero d'habitatge de la pàgina i agafem les dades
-        for nflat in range(len(flats)):
-            #print(flats[nflat])
-            # Validem i agafem l'enllaç (ha de ser el link del habitatge)
-            # a --> class="item-link" --> href
-            # href = flats[nflat].find("a", {"class": "item-link"})['href']
-
-            try:
-                href = flats[nflat].find("h2", {"class": "title d-ellipsis logo-aside"}).find("a", href=True)['href']
-                print(href)
-            except:
-                break; # Si no troba res sortim del bucle
-
-            try:
-                title = flats[nflat].find("h2", {"class": "title d-ellipsis logo-aside"}).text.strip()
-            except:
-                title = ''
-
+        for art in flats:
+            link = art.find("a", href=True)
+            if link is None:
+                continue
+            href = link['href']
+            title = link.get_text(strip=True)
             try:
                 id = href.split('-')[1]
-            except:
+            except IndexError:
                 id = ''
 
-            # span --> class="item-price h2-simulated" --> span .text
-            try:
-                price = flats[nflat].find("div", {"class": "price-wrapper inline-flex logo-aside"}).text.strip()
-            except:
-                price = ''
+            # Municipio, barrio y calle desde el titulo separado por comas:
+            #   "Piso en calle Huesca, Castillejos, Madrid"
+            parts = [p.strip() for p in title.split(',')]
+            town = parts[-1] if parts else ''
+            neighbour = ''
+            street = ''
+            if len(parts) >= 3:
+                street = parts[0].split(' en ')[-1].strip()
+                neighbour = parts[1]
+            elif len(parts) == 2:
+                neighbour = parts[0].split(' en ')[-1].strip()
 
-            # span --> class="item-detail" --> [nflat] --> span .text
-            try:
-                rooms = flats[nflat].find_all("div", {"class": "iconGroup"})[nflat].find("div", {"class": "icon-room"}).text.strip()
-                print(rooms)
-            except:
-                rooms = ''
+            price_el = art.find(class_="price-wrapper")
+            price = price_el.get_text(strip=True) if price_el else ''
 
-            try:
-                m2 = flats[nflat].find_all("div", {"class": "iconGroup"})[nflat].find("div", {"class": "icon-meter"}).text.strip()
-            except:
-                m2 = ''
+            # hab. y m² estan en <span> sin clase: los clasificamos por contenido.
+            rooms = m2 = ''
+            for sp in art.find_all("span"):
+                t = sp.get_text(strip=True)
+                tl = t.lower()
+                if 'hab' in tl and not rooms:
+                    rooms = t
+                elif 'm²' in tl and not m2:
+                    m2 = t
 
-            '''try:
-                bath = flats[nflat].find_all("div", {"class": "iconGroup"})[nflat].find("div", {"class": "icon-bath"}).text.strip()
-            except:
-                bath = '''''
-
-            # Hi ha pisos sense data o planta. Per evitar problemes assignem variable buida si hi ha error.
-            try:
-                floor = flats[nflat].find_all("span", {"class": "re-CardFeatures-feature"})[5].text.strip()
-            except:
-                floor = ""
-            try:
-                post_time = flats[nflat].find_all("span", {"class": "re-CardFeatures-feature"})[5].text.strip()
-            except:
-                post_time = ""
-
-            # Add items
+            items = ScrapyrealestateItem()
             items['id'] = id
             items['title'] = title
             items['price'] = price
             items['rooms'] = rooms
             items['m2'] = m2
-            items['floor'] = floor
-            items['post_time'] = post_time
-            items['href'] = default_url + href
-
+            items['floor'] = ''
+            items['town'] = town
+            items['neighbour'] = neighbour
+            items['street'] = street
+            items['number'] = ''
+            items['type'] = tipo
+            items['href'] = (default_url + href) if href.startswith('/') else href
+            items['site'] = 'yaencontre'
             yield items
-
-    # Overriding parse_start_url to get the first page
-    parse_start_url = parse
