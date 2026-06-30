@@ -25,10 +25,44 @@ telemetría.
 
 ## Docker
 
-La imagen se construye en local con el `Dockerfile` (instala Python, las
-dependencias y Chromium para Playwright).
+Imagen publicada en Docker Hub: `mcrespov/scrapyrealestate`.
 
-Construir:
+Ejecutar (Docker descarga la imagen sola la primera vez):
+
+```bash
+docker run -d \
+  --name scrapyrealestate \
+  --restart=always \
+  -p 8080:8080 \
+  mcrespov/scrapyrealestate:latest
+```
+
+El `-p 8080:8080` expone la web de configuración del primer arranque. Los datos
+(`config.json`, `ids.json`, `useragent.txt`) son efímeros: viven dentro del
+contenedor. Un `docker restart` los conserva, pero si borras o recreas el
+contenedor se pierden y tendrás que volver a configurarlo por la web (y el
+histórico de avisos empieza de cero). Para una segunda instancia cambia nombre y
+puerto (`-p 8081:8080`).
+
+Logs:
+
+```bash
+docker logs -f scrapyrealestate
+```
+
+## Con docker-compose
+
+El repositorio incluye un `docker-compose.yml` que usa la imagen publicada. Para
+levantarlo y pararlo:
+
+```bash
+docker compose up -d
+docker compose down
+```
+
+## Construir desde el código (opcional)
+
+Si en vez de usar la imagen publicada prefieres construirla tú mismo:
 
 ```bash
 docker build -t scrapyrealestate .
@@ -37,24 +71,7 @@ docker build -t scrapyrealestate .
 Ejecutar:
 
 ```bash
-docker run -d \
-  --name scrapyrealestate \
-  --restart=always \
-  -p 8080:8080 \
-  scrapyrealestate
-```
-
-El `-p 8080:8080` expone la web de configuración del primer arranque. Los datos
-(`config.json`, `ids.json`, `useragent.txt`) son efímeros: viven dentro del
-contenedor. Un `docker restart` los conserva, pero si borras o recreas el
-contenedor se pierden
-y tendrás que volver a configurarlo por la web (y el histórico de avisos empieza
-de cero). Para una segunda instancia cambia nombre y puerto (`-p 8081:8080`).
-
-Logs:
-
-```bash
-docker logs -f scrapyrealestate
+docker run -d --name scrapyrealestate --restart=always -p 8080:8080 scrapyrealestate
 ```
 
 ## Sin Docker
@@ -138,6 +155,7 @@ pasar tu URL como segundo argumento.
 
 ```
 Dockerfile
+docker-compose.yml
 README.md
 scrapyrealestate/
 ├── main.py                  # bucle, Telegram y deduplicación local

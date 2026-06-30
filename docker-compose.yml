@@ -1,0 +1,7 @@
+services:
+  scrapyrealestate:
+    image: mcrespov/scrapyrealestate:latest
+    container_name: scrapyrealestate
+    restart: always
+    ports:
+      - "8080:8080"
